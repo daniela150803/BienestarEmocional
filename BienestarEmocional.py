@@ -3,6 +3,11 @@ import json
 import hashlib
 import requests
 import gradio as gr
+import matplotlib.pyplot as plt
+from PIL import Image
+import io
+import re
+from collections import Counter
 from transformers import pipeline
 
 # ---------------------------------------------
@@ -20,37 +25,32 @@ except Exception as e:
     sentiment_pipeline = None
 
 # ---------------------------------------------
-# 2. API de reglas en línea
+# 2. Reglas 
 # ---------------------------------------------
-RULES_API = "https://tu-dominio.com/api/rules"
 
 def fetch_rules():
-    """Descarga el listado de reglas desde el servicio REST."""
-    try:
-        resp = requests.get(RULES_API, timeout=5)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        print(f"⚠️ No pude obtener reglas: {e}")
-        return []
+    with open("rules.json", "r", encoding="utf-8") as f:
+        return json.load(f)
 
 def eval_rules(estado):
-    """
-    Dado un estado dict con keys como 'sleep_hours','stress_level','emotion',
-    devuelve lista de consejos {'advice','source'}.
-    """
     recomendaciones = []
     reglas = fetch_rules()
     for regla in reglas:
         cond = regla.get("condition", {})
         cumple = True
         for var, expr in cond.items():
-            op, umbral = expr[0], float(expr[1:])
-            val = estado.get(var, 0)
-            if op == "<" and not (val < umbral):
-                cumple = False
-            if op == ">" and not (val > umbral):
-                cumple = False
+            val = estado.get(var, None)
+            if isinstance(expr, str) and expr[0] in "<>":
+                try:
+                    op, umbral = expr[0], float(expr[1:])
+                    val = float(val) if val is not None else 0
+                    if op == "<" and not (val < umbral): cumple = False
+                    if op == ">" and not (val > umbral): cumple = False
+                except:
+                    cumple = False
+            else:
+                if str(val).strip().lower() != str(expr).strip().lower():
+                    cumple = False
             if not cumple:
                 break
         if cumple:
@@ -59,6 +59,7 @@ def eval_rules(estado):
                 "source": regla.get("source", "")
             })
     return recomendaciones
+
 
 # ---------------------------------------------
 # 3. Perfil de usuario
@@ -82,15 +83,17 @@ def hash_password(pw: str) -> str:
 # 4. Clasificación + generación de consejos
 # ---------------------------------------------
 def clasificar_y_recomendar(full_text: str, latest_entry: str):
-    # 1) Sentimiento
     if not sentiment_pipeline:
         return [], "Servicio no disponible"
     res = sentiment_pipeline(full_text[:512])[0]
     score = int(res["label"].split()[0])
     category = ("Necesita apoyo", "Neutral", "Bienestar alto")[min(score-1, 2)]
 
-    # 2) Extraer métricas
-    parts = dict(p.split(":", 1) for p in latest_entry.split(";"))
+    parts = {}
+    for p in latest_entry.split(";"):
+        if ":" in p:
+            k, v = p.split(":", 1)
+            parts[k] = v
     try:
         sleep_hours = float(parts.get("Sueño", "0").split()[0])
     except:
@@ -105,11 +108,7 @@ def clasificar_y_recomendar(full_text: str, latest_entry: str):
         "stress_level": stress_level,
         "emotion": emotion
     }
-
-    # 3) Evaluar reglas remotas
     recs = eval_rules(estado)
-
-    # 4) Construir salida
     header = f"💬 *Puntuación* {score}/5 → **{category}**\n"
     advice_lines = "\n".join(f"- {r['advice']} *(fuente: {r['source']})*" for r in recs)
     if not advice_lines:
@@ -117,88 +116,72 @@ def clasificar_y_recomendar(full_text: str, latest_entry: str):
     return recs, header + advice_lines
 
 # ---------------------------------------------
-# 5. Callbacks de Gradio
+# 5. Diagnóstico visual
+# ---------------------------------------------
+def extraer_num(texto):
+    match = re.search(r"(\d+\.?\d*)", texto)
+    return float(match.group(1)) if match else 0
+
+def generar_diagnostico_completo(uid):
+    profiles = load_profiles()
+    entries = profiles[uid]["entries"]
+    sueño, estres, emociones, cafe, ejercicio = [], [], [], [], []
+    for e in entries:
+        if ":" not in e: continue
+        partes = dict(p.split(":", 1) for p in e.split(";") if ":" in p)
+        sueño.append(extraer_num(partes.get("Sueño", "")))
+        estres.append(extraer_num(partes.get("Estres", "")))
+        emociones.append(partes.get("Emoción", "Desconocida").strip())
+        cafe.append(extraer_num(partes.get("Café", "")))
+        ejercicio.append(extraer_num(partes.get("Ejercicio", "")))
+
+    dias = [f"Día {i+1}" for i in range(len(sueño))]
+    fig, axs = plt.subplots(3, 2, figsize=(12, 8))
+    axs[0, 0].plot(dias, sueño, marker='o'); axs[0, 0].set_title(" Sueño (horas)"); axs[0, 0].grid(True); axs[0, 0].tick_params(axis='x', rotation=45)
+    axs[0, 1].plot(dias, estres, marker='x', color='red'); axs[0, 1].set_title(" Estrés (1–10)"); axs[0, 1].grid(True); axs[0, 1].tick_params(axis='x', rotation=45)
+    axs[1, 0].bar(dias, cafe, color='brown'); axs[1, 0].set_title(" Café"); axs[1, 0].tick_params(axis='x', rotation=45)
+    axs[1, 1].bar(dias, ejercicio, color='green'); axs[1, 1].set_title(" Ejercicio"); axs[1, 1].tick_params(axis='x', rotation=45)
+    conteo = Counter(emociones)
+    axs[2, 0].bar(conteo.keys(), conteo.values(), color='purple'); axs[2, 0].set_title(" Emociones"); axs[2, 0].tick_params(axis='x', rotation=45)
+    axs[2, 1].axis('off')
+    fig.tight_layout()
+    buf = io.BytesIO(); plt.savefig(buf, format='png'); plt.close(fig)
+    buf.seek(0)
+    return Image.open(buf)
+
+# ---------------------------------------------
+# 6. Callbacks de Gradio
 # ---------------------------------------------
 def crear_usuario(uid, pw, state_uid):
-    # Validar campos no vacíos
     if not uid.strip() or not pw.strip():
-        return (
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            "", [], "❌ Por favor ingresa usuario y contraseña."
-        )
+        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", [], "❌ Por favor ingresa usuario y contraseña.")
     profiles = load_profiles()
     if uid in profiles:
-        return (
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            "", [], "❌ Usuario ya existe."
-        )
+        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", [], "❌ Usuario ya existe.")
     profiles[uid] = {"password": hash_password(pw), "entries": []}
     save_profiles(profiles)
-    return (
-        gr.update(visible=False),
-        gr.update(visible=True),
-        gr.update(visible=False),
-        uid, [], ""
-    )
+    return (gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), uid, [], "")
 
 def iniciar_sesion(uid, pw, state_uid):
-    # Validar campos no vacíos
     if not uid.strip() or not pw.strip():
-        return (
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            "", [], "❌ Por favor ingresa usuario y contraseña."
-        )
+        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", [], "❌ Por favor ingresa usuario y contraseña.")
     profiles = load_profiles()
     if uid not in profiles:
-        return (
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            "", [], "❌ No existe ese usuario."
-        )
+        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", [], "❌ No existe ese usuario.")
     if profiles[uid]["password"] != hash_password(pw):
-        return (
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            "", [], "❌ Contraseña incorrecta."
-        )
-    # Usuario y contraseña correctos
+        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", [], "❌ Contraseña incorrecta.")
     if profiles[uid]["entries"]:
         full = " ".join(profiles[uid]["entries"])
         latest = profiles[uid]["entries"][-1]
         _, mensaje = clasificar_y_recomendar(full, latest)
         welcome = [{"role": "assistant", "content": mensaje}]
-        return (
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=True),
-            uid, welcome, ""
-        )
+        return (gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), uid, welcome, "")
     else:
-        # primer acceso: muestro el formulario
-        return (
-            gr.update(visible=False),
-            gr.update(visible=True),
-            gr.update(visible=False),
-            uid, [], ""
-        )
+        return (gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), uid, [], "")
 
 def enviar_preguntas(sueño, emocion, cafe, ejercicio, estres, uid):
-    # Validar que todos los campos estén completos (no solo espacios)
     if not all(field.strip() for field in [sueño, emocion, cafe, ejercicio, estres]):
-        return (
-            gr.update(visible=True),   # sigo en formulario
-            gr.update(visible=False),  # oculto chat
-            [],                        # sin mensajes nuevos
-            "❌ Por favor completa todos los campos."
-        )
+        return (gr.update(visible=True), gr.update(visible=False), [], "❌ Por favor completa todos los campos.")
     profiles = load_profiles()
     entry = f"Sueño:{sueño};Emoción:{emocion};Café:{cafe};Ejercicio:{ejercicio};Estres:{estres}"
     profiles[uid]["entries"].append(entry)
@@ -207,12 +190,7 @@ def enviar_preguntas(sueño, emocion, cafe, ejercicio, estres, uid):
     latest = profiles[uid]["entries"][-1]
     _, mensaje = clasificar_y_recomendar(full, latest)
     welcome = [{"role": "assistant", "content": mensaje}]
-    return (
-        gr.update(visible=False),  # oculto formulario
-        gr.update(visible=True),   # muestro chat
-        welcome,                   # muestro mensaje de bienvenida
-        ""                         # limpio mensaje de error
-    )
+    return (gr.update(visible=False), gr.update(visible=True), welcome, "")
 
 def chat_submit(msg, history, uid):
     if not msg:
@@ -228,10 +206,9 @@ def chat_submit(msg, history, uid):
     return "", history
 
 # ---------------------------------------------
-# 6. UI en Gradio
+# 7. UI en Gradio
 # ---------------------------------------------
 with gr.Blocks(css=".gradio-container{max-width:600px;margin:auto}") as app:
-    # — Login / Registro —
     with gr.Column(visible=True) as login_sec:
         gr.Markdown("## 🔑 Inicia sesión o crea cuenta")
         uid_in = gr.Textbox(label="ID de usuario")
@@ -240,7 +217,6 @@ with gr.Blocks(css=".gradio-container{max-width:600px;margin:auto}") as app:
         btn_cr = gr.Button("Crear usuario")
         err    = gr.Markdown("", elem_id="login_error")
 
-    # — Formulario inicial —
     with gr.Column(visible=False) as form_sec:
         gr.Markdown("## 2️⃣ Cuéntame sobre tu día")
         sueño_in     = gr.Textbox(label="Sueño (hrs y sensación)")
@@ -251,34 +227,20 @@ with gr.Blocks(css=".gradio-container{max-width:600px;margin:auto}") as app:
         btn_form     = gr.Button("Registrar y empezar")
         form_err     = gr.Markdown("", elem_id="form_error")
 
-    # — Chat —
     with gr.Column(visible=False) as chat_sec:
         gr.Markdown("## 💬 Tu asistente personal")
         chatbot     = gr.Chatbot(type="messages", height=400)
         user_msg_in = gr.Textbox(placeholder="¿Cómo te sientes ahora?")
         btn_send    = gr.Button("Enviar")
+        btn_diag    = gr.Button("📊 Ver diagnóstico")
+        output_diag = gr.Image(label="Historial emocional")
         user_state  = gr.State("")
 
-    btn_cr.click(
-        crear_usuario,
-        [uid_in, pw_in, user_state],
-        [login_sec, form_sec, chat_sec, user_state, chatbot, err]
-    )
-    btn_in.click(
-        iniciar_sesion,
-        [uid_in, pw_in, user_state],
-        [login_sec, form_sec, chat_sec, user_state, chatbot, err]
-    )
-    btn_form.click(
-        enviar_preguntas,
-        [sueño_in, emocion_in, cafe_in, ejercicio_in, estres_in, user_state],
-        [form_sec, chat_sec, chatbot, form_err]
-    )
-    btn_send.click(
-        chat_submit,
-        [user_msg_in, chatbot, user_state],
-        [user_msg_in, chatbot]
-    )
+    btn_cr.click(crear_usuario, [uid_in, pw_in, user_state], [login_sec, form_sec, chat_sec, user_state, chatbot, err])
+    btn_in.click(iniciar_sesion, [uid_in, pw_in, user_state], [login_sec, form_sec, chat_sec, user_state, chatbot, err])
+    btn_form.click(enviar_preguntas, [sueño_in, emocion_in, cafe_in, ejercicio_in, estres_in, user_state], [form_sec, chat_sec, chatbot, form_err])
+    btn_send.click(chat_submit, [user_msg_in, chatbot, user_state], [user_msg_in, chatbot])
+    btn_diag.click(generar_diagnostico_completo, [user_state], [output_diag])
 
 if __name__ == "__main__":
     app.launch(

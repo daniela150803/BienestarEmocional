@@ -80,7 +80,11 @@ def clasificar_y_recomendar(full_text:str, latest_entry:str):
     score = int(res["label"].split()[0])
     category = ("Necesita apoyo","Neutral","Bienestar alto")[min(score-1,2)]
     # 2) Extraer métricas
-    parts = dict(p.split(":",1) for p in latest_entry.split(";"))
+    parts = {}
+    for p in latest_entry.split(";"):
+        if ":" in p:
+        k, v = p.split(":", 1)
+        parts[k] = v
     try:
         sleep_hours = float(parts.get("Sueño","0").split()[0])
     except:

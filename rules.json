@@ -1,0 +1,252 @@
+[
+  {
+    "condition": {
+      "sleep_hours": "<5",
+      "stress_level": ">7"
+    },
+    "advice": "Muy poco sueño y alto estrés. Prioriza el descanso y evita estimulantes esta noche.",
+    "source": "NHANES"
+  },
+  {
+    "condition": {
+      "sleep_hours": "<6",
+      "stress_level": ">5"
+    },
+    "advice": "Tu descanso es limitado y el estrés se acumula. Tómate una pausa o realiza ejercicios de relajación.",
+    "source": "NHANES"
+  },
+  {
+    "condition": {
+      "sleep_hours": ">=9",
+      "stress_level": "<3"
+    },
+    "advice": "Buen descanso y bajo estrés. Excelente equilibrio.",
+    "source": "DASPS"
+  },
+  {
+    "condition": {
+      "sleep_hours": ">8",
+      "stress_level": ">6"
+    },
+    "advice": "Aunque dormiste bastante, el estrés sigue alto. Revisa qué factores podrían estar afectándote.",
+    "source": "NHANES"
+  },
+  {
+    "condition": {
+      "emotion": "tristeza"
+    },
+    "advice": "Un día triste puede mejorar con una pausa, ejercicio o un rato con alguien de confianza.",
+    "source": "Gobierno de Aragón"
+  },
+  {
+    "condition": {
+      "emotion": "ansiedad"
+    },
+    "advice": "Realiza respiraciones profundas o escucha música relajante para reducir la ansiedad.",
+    "source": "Gobierno de Aragón"
+  },
+  {
+    "condition": {
+      "emotion": "alegría"
+    },
+    "advice": "¡Qué bueno que te sientes bien! Comparte tu energía positiva con alguien más.",
+    "source": "EWB Repository"
+  },
+  {
+    "condition": {
+      "emotion": "enojo"
+    },
+    "advice": "Evita tomar decisiones importantes bajo enojo. Caminar o escribir tus emociones puede ayudarte.",
+    "source": "EWB Repository"
+  },
+  {
+    "condition": {
+      "cafeina": ">3"
+    },
+    "advice": "Has consumido bastante cafeína. Modera su uso si te cuesta dormir.",
+    "source": "NHANES"
+  },
+  {
+    "condition": {
+      "cafeina": "0"
+    },
+    "advice": "No has reportado cafeína. Bien si estás priorizando el descanso natural.",
+    "source": "DASPS"
+  },
+  {
+    "condition": {
+      "ejercicio": "0"
+    },
+    "advice": "No realizaste ejercicio. Intenta una caminata corta o estiramientos.",
+    "source": "ENSANUT México"
+  },
+  {
+    "condition": {
+      "ejercicio": "<1"
+    },
+    "advice": "Poca actividad física reportada. Moverse al menos 30 minutos al día es beneficioso.",
+    "source": "ENSANUT México"
+  },
+  {
+    "condition": {
+      "ejercicio": ">2"
+    },
+    "advice": "Muy buena rutina física. El ejercicio ayuda al bienestar general.",
+    "source": "ENSANUT México"
+  },
+  {
+    "condition": {
+      "screen_time": ">6"
+    },
+    "advice": "Tu tiempo frente a pantallas es alto. Desconéctate una hora antes de dormir.",
+    "source": "Kaggle ScreenTime"
+  },
+  {
+    "condition": {
+      "screen_time": ">8"
+    },
+    "advice": "Considera reducir el uso de pantallas prolongado. Haz pausas cada hora.",
+    "source": "Kaggle ScreenTime"
+  },
+  {
+    "condition": {
+      "walkability": ">7",
+      "ejercicio": "<1"
+    },
+    "advice": "Vives en una zona caminable. ¡Aprovecha para moverte más!",
+    "source": "Walkability Index"
+  },
+  {
+    "condition": {
+      "walkability": "<5",
+      "ejercicio": "0"
+    },
+    "advice": "Tu entorno no ayuda al ejercicio. Busca alternativas como rutinas en casa.",
+    "source": "Walkability Index"
+  },
+  {
+    "condition": {
+      "sleep_hours": "<6",
+      "cafeina": ">2",
+      "stress_level": ">6"
+    },
+    "advice": "Poco sueño, mucho café y estrés alto. Es momento de frenar un poco.",
+    "source": "NHANES + DASPS"
+  },
+  {
+    "condition": {
+      "sleep_hours": ">8",
+      "ejercicio": ">1",
+      "stress_level": "<4"
+    },
+    "advice": "Dormiste bien, te ejercitaste y tu estrés es bajo. ¡Muy bien!",
+    "source": "EWB Dataset"
+  },
+  {
+    "condition": {
+      "emotion": "ansiedad",
+      "cafeina": ">1"
+    },
+    "advice": "Ansiedad y cafeína no combinan bien. Intenta reducir el consumo mañana.",
+    "source": "Mental Health API"
+  },
+  {
+    "condition": {
+      "ejercicio": "0",
+      "stress_level": ">6"
+    },
+    "advice": "Sin ejercicio y con estrés alto. Una pausa activa puede ayudarte.",
+    "source": "ENSANUT México"
+  },
+  {
+    "condition": {
+      "alimentacion": "alta en azúcar",
+      "sleep_hours": "<6"
+    },
+    "advice": "Dormiste poco y consumiste azúcar en exceso. Intenta cenar más ligero hoy.",
+    "source": "FoodData Central"
+  },
+  {
+    "condition": {
+      "alimentacion": "balanceada",
+      "ejercicio": ">1"
+    },
+    "advice": "Alimentación saludable y ejercicio regular. Sigue con estos hábitos positivos.",
+    "source": "USDA & EWB"
+  },
+  {
+    "condition": {
+      "sleep_hours": "7",
+      "stress_level": "3"
+    },
+    "advice": "Tienes un patrón saludable. Intenta mantener esta estabilidad.",
+    "source": "NHANES"
+  },
+  {
+    "condition": {
+      "sleep_hours": ">7",
+      "ejercicio": ">1",
+      "cafeina": "0"
+    },
+    "advice": "Sueño adecuado, ejercicio y nada de estimulantes. ¡Excelente autocuidado!",
+    "source": "DASPS + NHANES"
+  },
+  {
+    "condition": {
+      "emotion": "agotamiento"
+    },
+    "advice": "El agotamiento puede ser físico o emocional. Date permiso para descansar.",
+    "source": "Mental Health GitHub"
+  },
+  {
+    "condition": {
+      "emotion": "calma"
+    },
+    "advice": "La calma indica equilibrio. Mantén tus hábitos positivos.",
+    "source": "Mental Health GitHub"
+  },
+  {
+    "condition": {
+      "emotion": "soledad"
+    },
+    "advice": "Busca conexión con otros, incluso en pequeños gestos o mensajes.",
+    "source": "Emotional Dataset"
+  },
+  {
+    "condition": {
+      "alimentacion": "irregular"
+    },
+    "advice": "Trata de mantener horarios estables de comida. Ayuda al bienestar emocional.",
+    "source": "USDA"
+  },
+  {
+    "condition": {
+      "alimentacion": "salteada"
+    },
+    "advice": "Saltarse comidas puede afectar tu energía y humor.",
+    "source": "FoodData Central"
+  },
+  {
+    "condition": {
+      "alimentacion": "rica en vegetales"
+    },
+    "advice": "Buena elección alimentaria. Los vegetales apoyan tu salud mental.",
+    "source": "USDA"
+  },
+  {
+    "condition": {
+      "screen_time": ">6",
+      "sleep_hours": "<6"
+    },
+    "advice": "Mucho uso de pantallas y poco sueño. Intenta establecer límites nocturnos.",
+    "source": "Kaggle + NHANES"
+  },
+  {
+    "condition": {
+      "walkability": ">6",
+      "ejercicio": ">1"
+    },
+    "advice": "Tu entorno y actividad se complementan bien. Sigue aprovechándolo.",
+    "source": "Walkability Index"
+  }
+]

@@ -8,26 +8,26 @@ from PIL import Image
 import io
 import re
 from collections import Counter
-from transformers import pipeline
+from sklearn.metrics.pairwise import cosine_similarity
+from transformers import AutoTokenizer, AutoModel
+import numpy as np
+import torch
 
 # ---------------------------------------------
-# 1. Modelo de sentimiento (BERT)
+# 1. Modelo de embeddings (SentenceTransformer)
 # ---------------------------------------------
+model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 try:
-    sentiment_pipeline = pipeline(
-        "sentiment-analysis",
-        model="nlptown/bert-base-multilingual-uncased-sentiment",
-        device="cpu"
-    )
-    print("✅ Modelo cargado correctamente")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
+    print("✅ Modelo de embeddings cargado correctamente")
 except Exception as e:
-    print(f"❌ Error al cargar el modelo: {e}")
-    sentiment_pipeline = None
+    print(f"❌ Error al cargar el modelo de embeddings: {e}")
+    tokenizer, model = None, None
 
 # ---------------------------------------------
 # 2. Reglas 
 # ---------------------------------------------
-
 def fetch_rules():
     with open("rules.json", "r", encoding="utf-8") as f:
         return json.load(f)
@@ -60,6 +60,23 @@ def eval_rules(estado):
             })
     return recomendaciones
 
+def texto_a_vector(texto):
+    inputs = tokenizer(texto, return_tensors="pt", truncation=True, padding=True)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
+    return embeddings.reshape(1, -1)
+
+def similitud_coseno(texto_actual, entradas_previas):
+    if not entradas_previas:
+        return 0.0
+    vect_actual = texto_a_vector(texto_actual)
+    similitudes = []
+    for entrada in entradas_previas:
+        vect_pasado = texto_a_vector(entrada)
+        sim = cosine_similarity(vect_actual, vect_pasado)[0][0]
+        similitudes.append(sim)
+    return max(similitudes)
 
 # ---------------------------------------------
 # 3. Perfil de usuario
@@ -82,12 +99,9 @@ def hash_password(pw: str) -> str:
 # ---------------------------------------------
 # 4. Clasificación + generación de consejos
 # ---------------------------------------------
-def clasificar_y_recomendar(full_text: str, latest_entry: str):
-    if not sentiment_pipeline:
-        return [], "Servicio no disponible"
-    res = sentiment_pipeline(full_text[:512])[0]
-    score = int(res["label"].split()[0])
-    category = ("Necesita apoyo", "Neutral", "Bienestar alto")[min(score-1, 2)]
+def clasificar_y_recomendar(full_text:str, latest_entry:str, uid:str):
+    score = "-"
+    category = "Sin análisis de sentimiento"
 
     parts = {}
     for p in latest_entry.split(";"):
@@ -113,7 +127,14 @@ def clasificar_y_recomendar(full_text: str, latest_entry: str):
     advice_lines = "\n".join(f"- {r['advice']} *(fuente: {r['source']})*" for r in recs)
     if not advice_lines:
         advice_lines = "Por ahora no hay consejos nuevos, ¡hablemos mañana!"
+
+    perfiles = load_profiles()
+    entradas_previas = perfiles.get(uid, {}).get("entries", [])[:-1]
+    similaridad = similitud_coseno(latest_entry, entradas_previas)
+    advice_lines += f"\n\n🔁 *Similitud emocional con días anteriores:* **{similaridad:.2f}**"
+
     return recs, header + advice_lines
+
 
 # ---------------------------------------------
 # 5. Diagnóstico visual
@@ -173,7 +194,7 @@ def iniciar_sesion(uid, pw, state_uid):
     if profiles[uid]["entries"]:
         full = " ".join(profiles[uid]["entries"])
         latest = profiles[uid]["entries"][-1]
-        _, mensaje = clasificar_y_recomendar(full, latest)
+        _, mensaje = clasificar_y_recomendar(full, latest, uid)
         welcome = [{"role": "assistant", "content": mensaje}]
         return (gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), uid, welcome, "")
     else:
@@ -188,7 +209,7 @@ def enviar_preguntas(sueño, emocion, cafe, ejercicio, estres, uid):
     save_profiles(profiles)
     full = " ".join(profiles[uid]["entries"])
     latest = profiles[uid]["entries"][-1]
-    _, mensaje = clasificar_y_recomendar(full, latest)
+    _, mensaje = clasificar_y_recomendar(full, latest, uid)
     welcome = [{"role": "assistant", "content": mensaje}]
     return (gr.update(visible=False), gr.update(visible=True), welcome, "")
 
@@ -198,9 +219,9 @@ def chat_submit(msg, history, uid):
     profiles = load_profiles()
     profiles[uid]["entries"].append(msg)
     save_profiles(profiles)
-    full = " ".join(profiles[uid]["entries"])
-    latest = profiles[uid]["entries"][-1]
-    _, mensaje = clasificar_y_recomendar(full, latest)
+    full = " ".join(profiles[uid]["entries"] + [msg])  # incluye msg
+    latest = msg  # el mensaje recién escrito
+    _, mensaje = clasificar_y_recomendar(full, latest, uid)
     history.append({"role": "user", "content": msg})
     history.append({"role": "assistant", "content": mensaje})
     return "", history
